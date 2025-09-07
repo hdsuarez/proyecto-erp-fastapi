@@ -1,19 +1,33 @@
-from fastapi import FastAPI
-from app.routes import products, users, sales  # importamos nuestros módulos de rutas
+from fastapi import FastAPI, Depends
+from sqlalchemy.orm import Session
+from app import models, database
 
-# Inicializamos la aplicación FastAPI
-app = FastAPI(
-    title="ERP Básico con FastAPI",
-    version="0.1",
-    description="Esqueleto inicial de un ERP educativo"
-)
+app = FastAPI(title="ERP Básico con BD", version="0.2")
 
-# Conectamos las rutas de los diferentes módulos al app principal
-app.include_router(products.router)
-app.include_router(users.router)
-app.include_router(sales.router)
+# Crear tablas en la BD automáticamente
+models.Base.metadata.create_all(bind=database.engine)
 
-# Endpoint raíz (solo para comprobar que funciona el servidor)
+# Dependencia para obtener sesión de BD
+def get_db():
+    db = database.SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 @app.get("/")
-def read_root():
-    return {"mensaje": "Bienvenido al ERP Básico 🚀"}
+def inicio():
+    return {"mensaje": "Bienvenido al ERP con Base de Datos 🚀"}
+
+# --- Usuarios ---
+@app.post("/usuarios/")
+def crear_usuario(nombre: str, db: Session = Depends(get_db)):
+    nuevo_usuario = models.Usuario(nombre=nombre)
+    db.add(nuevo_usuario)
+    db.commit()
+    db.refresh(nuevo_usuario)
+    return nuevo_usuario
+
+@app.get("/usuarios/")
+def listar_usuarios(db: Session = Depends(get_db)):
+    return db.query(models.Usuario).all()
